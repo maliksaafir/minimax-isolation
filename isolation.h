@@ -4,7 +4,7 @@
 using namespace std;
 
 // max depth for the minimax algorithm
-const int MINIMAX_DEPTH = 8;
+const int MINIMAX_DEPTH = 14;
 
 struct Pos {
     int row, col;
@@ -39,7 +39,7 @@ char winner(State& state);
 int evaluate(State& state);
 int max(int a, int b);
 int min(int a, int b);
-int minimax(State state, int depth, bool maximizing, Pos& move);
+int minimax(State state, int depth, bool maximizing, int alpha, int beta, Pos& move);
 Pos ai_move(State state);
 Pos start_minimax(State state);
 vector<Pos> moves(State& state, char player);
@@ -171,13 +171,14 @@ int min(int a, int b) {
     return (a < b) ? a : b;
 }
 
-// implements minimax algorithm to select best course of action, modifies move reference to hold best immediate move
-int minimax(State state, int depth, bool maximizing, Pos& move) {
+// implements minimax algorithm with alpha-beta pruning to select best course of action, modifies move reference to hold best immediate move
+int minimax(State state, int depth, bool maximizing, int alpha, int beta, Pos& move) {
     int eval, maxEval, minEval;
     State temp;
     vector<Pos> movelist;
-    // base case, return state evaluation (heuristic)
-    if (depth == 0 || winner(state) != 'n') {
+    // once you reach a leaf node (game over state) return the evaluation
+    // depth-limit can also be implemented
+    if (/* depth == 0 || */ winner(state) != 'n') {
         return evaluate(state);
     }
     // AI is maximizing player
@@ -190,13 +191,18 @@ int minimax(State state, int depth, bool maximizing, Pos& move) {
             temp = state;
             make_move(temp, temp.ai, m);
             temp.turn = (temp.turn == 'x') ? 'o' : 'x';
-            eval = minimax(temp, depth - 1, false, move);
+            eval = minimax(temp, depth - 1, false, alpha, beta, move);
             if (eval > maxEval) {
                 maxEval = eval;
                 // update the move reference if it is first level and move is better than best seen
                 if (depth == MINIMAX_DEPTH) {
                     move = m;
                 }
+            }
+            // alpha keeps track of best score so far for AI
+            alpha = max(alpha, eval);
+            if (beta <= alpha) {
+                break;
             }
         }
         return maxEval;
@@ -208,9 +214,14 @@ int minimax(State state, int depth, bool maximizing, Pos& move) {
             temp = state;
             make_move(temp, temp.human, m);
             temp.turn = (temp.turn == 'x') ? 'o' : 'x';
-            eval = minimax(temp, depth - 1, true, move);
+            eval = minimax(temp, depth - 1, true, alpha, beta, move);
             if (eval < minEval) {
                 minEval = eval;
+            }
+            // beta keeps track of best score so far for human
+            beta = min(beta, eval);
+            if (beta <= alpha) {
+                break;
             }
         }
         return minEval;
@@ -226,7 +237,7 @@ Pos ai_move(State state) {
 // intiate minimax
 Pos start_minimax(State state) {
     Pos move;
-    int m = minimax(state, MINIMAX_DEPTH, true, move);
+    int m = minimax(state, MINIMAX_DEPTH, true, -1000, 1000, move);
     return move;
 }
 
@@ -245,6 +256,7 @@ vector<Pos> moves(State& state, char player) {
 
 // play the game
 void game_loop(State& state) {
+    cout << "FIGHT!!!\n";
     while (winner(state) == 'n') {
         Pos move;
         print_board(state);
@@ -270,11 +282,18 @@ void game_loop(State& state) {
 
 // initialize the board and players
 void init_board(State& state) {
+    bool out_of_bounds;
     char human_choice, first;
-    cout << "Choose your side (enter 'x' or 'o'): ";
-    cin >> human_choice;
-    cout << "Which side will go first (enter 'x' or 'o'): ";
-    cin >> first;
+    Pos x, o;
+    string x_pos, o_pos;
+    do {
+        cout << "Choose your side (enter 'x' or 'o'): ";
+        cin >> human_choice;
+    } while (human_choice != 'x' && human_choice != 'o');
+    do {
+        cout << "Which side will go first (enter 'x' or 'o'): ";
+        cin >> first;
+    } while (first != 'x' && first != 'o');
     // set player sides + first turn
     state.human = human_choice;
     state.ai = (human_choice == 'x') ? 'o' : 'x';
@@ -286,10 +305,22 @@ void init_board(State& state) {
         }
     }
     // place x and o
-    state.board[0][0] = 'x';
-    state.board[3][3] = 'o';
-    state.x_pos = {0, 0};
-    state.o_pos = {3, 3};
+    do {
+        cout << "enter start location for x (eg b2): ";
+        cin >> x_pos;
+        cout << "enter start location for o (eg a3): ";
+        cin >> o_pos;
+        x.row = x_pos[1] - '0' - 1;
+        x.col = x_pos[0] - 'a';
+        o.row = o_pos[1] - '0' - 1;
+        o.col = o_pos[0] - 'a';
+        out_of_bounds = x.row < 0 || x.row > 3 || x.col < 0 || x.col > 3 ||
+                        o.row < 0 || o.row > 3 || o.col < 0 || o.col > 3;
+    } while (x_pos == o_pos || out_of_bounds);
+    state.board[x.row][x.col] = 'x';
+    state.board[o.row][o.col] = 'o';
+    state.x_pos = x;
+    state.o_pos = o;
 }
 
 void play(State& state) {
