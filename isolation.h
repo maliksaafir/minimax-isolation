@@ -4,7 +4,7 @@
 using namespace std;
 
 // max depth for the minimax algorithm
-const int MINIMAX_DEPTH = 5;
+const int MINIMAX_DEPTH = 8;
 
 struct Pos {
     int row, col;
